@@ -1,6 +1,7 @@
 
 var express = require('express');
-var DarkSky = require('dark-sky')
+var DarkSky = require('dark-sky');
+const https = require('https');
 var app = express();
 var bodyParser = require('body-parser');
 var cors = require('cors');
@@ -72,18 +73,66 @@ const darksky = new DarkSky(api_keys[2])
 
 app.use('/weather', async (req, res, next) => {
   try {
-    const { latitude, longitude } = req.body
+    const { latitude, longitude,date } = req.body
     const forecast = await darksky
       .options({
         latitude,
         longitude,
-        // time: moment().subtract(1, 'weeks')
+        time: date
       })
       .get()
     res.status(200).json(forecast)
   } catch (err) {
     next(err)
   }
+})
+
+Date.prototype.addDays = function (days) {
+  var date = new Date(this.valueOf());
+  date.setDate(date.getDate() + days);
+  return date;
+}
+
+function getDates(startDate, stopDate) {
+  var dateArray = new Array();
+  var currentDate = new Date(startDate);
+  var stopDate = new Date(stopDate);
+  while (currentDate <= stopDate) {
+    dateArray.push(new Date(currentDate));
+    currentDate = currentDate.addDays(1);
+  }
+  return dateArray;
+}
+
+app.use('/weatherRange', (req, res, next) => {
+  let result = []
+  const { latitude, longitude, start_date, end_date } = req.body
+  let dateArray = getDates(start_date, end_date);
+  let dateRangeSize = dateArray.length;
+  let finished = false;
+  console.log("fetching weather data....")
+
+  let promisesArray = dateArray.map(date => {
+    // make a new promise for each element of cities
+    return new Promise((resolve, reject) => {
+      results = darksky
+        .options({
+          latitude,
+          longitude,
+          time: date
+        })
+        .get()
+      resolve(results);
+    });
+  })
+
+  Promise.all(promisesArray)
+    .then(function (results) {
+      res.status(200).json({weather:results,dates:dateArray})
+    })
+    .catch(function (error) {
+      console.log(error)
+    })
 })
 
 // Start the server
